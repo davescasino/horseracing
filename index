@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Dave's Horse Racing</title>
+    <style>
+        body { 
+            background: radial-gradient(circle, #1a3c1a 0%, #0a1a0a 100%); 
+            color: #fff; font-family: 'Segoe UI', sans-serif; 
+            text-align: center; margin: 0; padding: 10px; 
+            overflow-x: hidden; /* Allow vertical scroll if needed on tiny screens */
+        }
+        
+        /* Dave's Casino Standard Hub Button - Mobile Adjusted */
+        .back-hub {
+            position: relative; display: inline-block; margin: 10px 0 20px 0;
+            padding: 10px 15px; background: #333; color: #ffd700;
+            text-decoration: none; border-radius: 5px; font-weight: bold;
+            border: 1px solid #ffd700; z-index: 9999; transition: 0.3s;
+        }
+        @media (min-width: 768px) {
+            .back-hub { position: absolute; top: 20px; left: 20px; margin: 0; }
+        }
+        .back-hub:hover { background: #ffd700; color: #000; box-shadow: 0 0 10px #ffd700; }
+
+        .casino-header { 
+            text-shadow: 0 0 10px #ffd700; border-bottom: 2px solid #ffd700; 
+            display: inline-block; padding-bottom: 10px; margin-bottom: 20px; 
+            text-transform: uppercase; font-size: 1.5rem;
+        }
+
+        /* Responsive Canvas */
+        canvas { 
+            background: #2e7d32; border: 8px solid #3e2723; border-radius: 40px; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.8); margin: 0 auto; 
+            display: block; width: 100%; max-width: 1000px; height: auto;
+        }
+
+        .ui-panel { 
+            background: rgba(0,0,0,0.9); border: 2px solid #ffd700; border-radius: 15px; 
+            padding: 15px; margin: 20px auto; max-width: 600px; 
+            display: flex; flex-wrap: wrap; justify-content: space-around; align-items: center; gap: 15px;
+        }
+
+        .balance-box { font-size: 20px; color: #ffd700; font-weight: bold; min-width: 100px; }
+        
+        select { 
+            padding: 12px; border-radius: 8px; font-weight: bold; outline: none; 
+            cursor: pointer; background: #fff; flex-grow: 1; max-width: 200px;
+        }
+        /* Style for disabled select to look "locked" */
+        select:disabled { background: #666; color: #ccc; cursor: not-allowed; }
+
+        button { 
+            background: linear-gradient(#ffd700, #b8860b); color: #000; font-weight: bold; 
+            padding: 15px 25px; border-radius: 8px; border: none; cursor: pointer; 
+            box-shadow: 0 4px 0 #8b6d00; outline: none; font-size: 16px;
+        }
+        button:active { transform: translateY(2px); box-shadow: 0 2px 0 #8b6d00; }
+        button:disabled { background: #555; color: #888; box-shadow: none; cursor: not-allowed; }
+
+        .hint { margin-top: 10px; color: #aaa; font-size: 12px; }
+
+        /* Mobile specific stack */
+        @media (max-width: 480px) {
+            .ui-panel { flex-direction: column; }
+            select { max-width: 100%; width: 100%; }
+            button { width: 100%; }
+        }
+    </style>
+</head>
+<body>
+
+    <a href="https://davescasino.github.io/davescasino" class="back-hub">⬅ Back to Hub</a>
+
+    <h1 class="casino-header">Dave's Horse Racing</h1>
+    
+    <canvas id="raceTrack" width="1000" height="500"></canvas>
+
+    <div class="ui-panel">
+        <div class="balance-box">💰 $<span id="balance">100</span></div>
+        <select id="horseSelect">
+            <option value="0">#1 Red Rocket</option>
+            <option value="1">#2 Blue Bolt</option>
+            <option value="2">#3 Gold Gallop</option>
+            <option value="3">#4 Silver Streak</option>
+            <option value="4">#5 Purple Power</option>
+        </select>
+        <button id="startBtn">PLACE BET ($10)</button>
+    </div>
+    <div class="hint">Tip: Press <b>SPACEBAR</b> or Tap to Bet</div>
+
+    <script>
+        const canvas = document.getElementById('raceTrack');
+        const ctx = canvas.getContext('2d');
+        const startBtn = document.getElementById('startBtn');
+        const horseSelect = document.getElementById('horseSelect'); // Reference to dropdown
+        const balanceEl = document.getElementById('balance');
+        
+        let balance = 100;
+        let racing = false;
+        let startTime = null;
+        let canBet = true; 
+        const raceDuration = 12000; // Slightly faster for mobile engagement (12s)
+
+        const horseData = [
+            { id: 0, color: '#ff4444', label: '1' },
+            { id: 1, color: '#4444ff', label: '2' },
+            { id: 2, color: '#ffd700', label: '3' },
+            { id: 3, color: '#ffffff', label: '4' },
+            { id: 4, color: '#bb44ff', label: '5' }
+        ];
+
+        let horses = [];
+
+        function initHorses() {
+            horses = horseData.map((h, i) => ({
+                ...h,
+                angle: 1.5 * Math.PI,
+                rx: 300 + (i * 30), 
+                ry: 120 + (i * 25),
+                phaseShift: Math.random() * 10,
+                speedMult: 0.985 + (Math.random() * 0.035) 
+            }));
+        }
+
+        function drawTrack() {
+            ctx.fillStyle = "#5d4037";
+            ctx.beginPath(); ctx.ellipse(500, 250, 450, 250, 0, 0, Math.PI * 2); ctx.fill();
+            ctx.strokeStyle = "rgba(255,255,255,0.1)"; ctx.lineWidth = 2;
+            for(let i=0; i<6; i++) {
+                ctx.beginPath(); ctx.ellipse(500, 250, 285+(i*30), 108+(i*25), 0, 0, Math.PI * 2); ctx.stroke();
+            }
+            ctx.strokeStyle = "#fff"; ctx.lineWidth = 8;
+            ctx.beginPath(); ctx.moveTo(500, 15); ctx.lineTo(500, 142); ctx.stroke();
+        }
+
+        function drawHorse(h) {
+            const x = 500 + Math.cos(h.angle) * h.rx;
+            const y = 250 + Math.sin(h.angle) * h.ry;
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.rotate(h.angle + Math.PI/2);
+            ctx.fillStyle = h.color;
+            ctx.beginPath(); ctx.ellipse(0, 0, 14, 9, 0, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = (h.color === '#ffffff' || h.color === '#ffd700') ? "#000" : "#fff";
+            ctx.font = "bold 11px Arial"; ctx.textAlign = "center";
+            ctx.fillText(h.label, 0, 4);
+            ctx.restore();
+        }
+
+        function renderAll() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawTrack();
+            horses.forEach(drawHorse);
+        }
+
+        function animate(timestamp) {
+            if (!startTime) startTime = timestamp;
+            const elapsed = timestamp - startTime;
+            const progress = Math.min(elapsed / raceDuration, 1);
+
+            horses.forEach(h => {
+                if (progress < 1) {
+                    const suspense = Math.sin(progress * 12 + h.phaseShift) * 0.012;
+                    const smoothProgress = Math.max(0, (progress * h.speedMult) + suspense);
+                    h.angle = (1.5 * Math.PI) + (smoothProgress * Math.PI * 2);
+                } else {
+                    h.angle = (1.5 * Math.PI) + (1.0 * h.speedMult * Math.PI * 2);
+                }
+            });
+
+            renderAll();
+            if (progress < 1) {
+                requestAnimationFrame(animate);
+            } else {
+                finishRace();
+            }
+        }
+
+        function finishRace() {
+            const betOn = horseSelect.value;
+            const winner = horses.reduce((a, b) => a.angle > b.angle ? a : b);
+            
+            setTimeout(() => {
+                const isWin = winner.id == betOn;
+                const msg = isWin ? 
+                    `🏆 WINNER: Horse #${winner.label}!\nDave pays you $50.` : 
+                    `💸 LOSER: Horse #${winner.label} won.\nTry again at Dave's!`;
+                
+                alert(msg);
+                
+                if (isWin) balance += 50;
+                balanceEl.innerText = balance;
+                
+                racing = false;
+                startBtn.disabled = false;
+                horseSelect.disabled = false; // Re-enable betting selection
+                startTime = null;
+                initHorses();
+                renderAll();
+
+                setTimeout(() => { canBet = true; }, 300);
+            }, 300);
+        }
+
+        function handleBet() {
+            if (racing || !canBet) return;
+            if (balance < 10) return alert("You're out of cash! Dave doesn't give loans.");
+            
+            canBet = false; 
+            startBtn.blur(); 
+            
+            // LOCK UI
+            horseSelect.disabled = true; // Prevents changing bet mid-race
+            startBtn.disabled = true;
+            
+            balance -= 10;
+            balanceEl.innerText = balance;
+            racing = true;
+            requestAnimationFrame(animate);
+        }
+
+        startBtn.addEventListener('click', handleBet);
+
+        window.addEventListener('keydown', (e) => {
+            if (e.code === "Space") {
+                e.preventDefault(); 
+                handleBet();
+            }
+        });
+
+        initHorses();
+        renderAll();
+    </script>
+</body>
+</html>
