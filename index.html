@@ -9,10 +9,9 @@
             background: radial-gradient(circle, #1a3c1a 0%, #0a1a0a 100%); 
             color: #fff; font-family: 'Segoe UI', sans-serif; 
             text-align: center; margin: 0; padding: 10px; 
-            overflow-x: hidden; /* Allow vertical scroll if needed on tiny screens */
+            overflow-x: hidden;
         }
         
-        /* Dave's Casino Standard Hub Button - Mobile Adjusted */
         .back-hub {
             position: relative; display: inline-block; margin: 10px 0 20px 0;
             padding: 10px 15px; background: #333; color: #ffd700;
@@ -30,12 +29,38 @@
             text-transform: uppercase; font-size: 1.5rem;
         }
 
-        /* Responsive Canvas */
+        /* Container for the canvas to help position the overlay */
+        .game-container {
+            position: relative;
+            margin: 0 auto;
+            max-width: 1000px;
+        }
+
         canvas { 
             background: #2e7d32; border: 8px solid #3e2723; border-radius: 40px; 
             box-shadow: 0 10px 30px rgba(0,0,0,0.8); margin: 0 auto; 
-            display: block; width: 100%; max-width: 1000px; height: auto;
+            display: block; width: 100%; height: auto;
         }
+
+        /* NEW: Custom Result Overlay */
+        #resultOverlay {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.95);
+            border: 4px solid #ffd700;
+            border-radius: 20px;
+            padding: 30px;
+            width: 80%;
+            max-width: 400px;
+            display: none; /* Hidden by default */
+            z-index: 100;
+            box-shadow: 0 0 50px rgba(0,0,0,1);
+        }
+        #resultTitle { font-size: 28px; margin-bottom: 10px; text-transform: uppercase; }
+        #resultMessage { font-size: 18px; margin-bottom: 20px; color: #ccc; }
+        .win-text { color: #ffd700; text-shadow: 0 0 10px #ffd700; }
+        .lose-text { color: #ff4444; }
 
         .ui-panel { 
             background: rgba(0,0,0,0.9); border: 2px solid #ffd700; border-radius: 15px; 
@@ -49,7 +74,6 @@
             padding: 12px; border-radius: 8px; font-weight: bold; outline: none; 
             cursor: pointer; background: #fff; flex-grow: 1; max-width: 200px;
         }
-        /* Style for disabled select to look "locked" */
         select:disabled { background: #666; color: #ccc; cursor: not-allowed; }
 
         button { 
@@ -62,7 +86,6 @@
 
         .hint { margin-top: 10px; color: #aaa; font-size: 12px; }
 
-        /* Mobile specific stack */
         @media (max-width: 480px) {
             .ui-panel { flex-direction: column; }
             select { max-width: 100%; width: 100%; }
@@ -76,7 +99,16 @@
 
     <h1 class="casino-header">Dave's Horse Racing</h1>
     
-    <canvas id="raceTrack" width="1000" height="500"></canvas>
+    <div class="game-container">
+        <canvas id="raceTrack" width="1000" height="500"></canvas>
+        
+        <div id="resultOverlay">
+            <div id="resultTitle">Winner!</div>
+            <div id="resultMessage">Horse #3 took the gold.</div>
+            <button id="closeOverlayBtn">CONTINUE</button>
+            <div class="hint" style="margin-top:15px">(Or Press Space)</div>
+        </div>
+    </div>
 
     <div class="ui-panel">
         <div class="balance-box">💰 $<span id="balance">100</span></div>
@@ -89,20 +121,27 @@
         </select>
         <button id="startBtn">PLACE BET ($10)</button>
     </div>
-    <div class="hint">Tip: Press <b>SPACEBAR</b> or Tap to Bet</div>
+    <div class="hint">Tip: Press <b>SPACEBAR</b> to Bet/Confirm</div>
 
     <script>
         const canvas = document.getElementById('raceTrack');
         const ctx = canvas.getContext('2d');
         const startBtn = document.getElementById('startBtn');
-        const horseSelect = document.getElementById('horseSelect'); // Reference to dropdown
+        const horseSelect = document.getElementById('horseSelect');
         const balanceEl = document.getElementById('balance');
+        
+        // UI Elements for Overlay
+        const resultOverlay = document.getElementById('resultOverlay');
+        const resultTitle = document.getElementById('resultTitle');
+        const resultMessage = document.getElementById('resultMessage');
+        const closeOverlayBtn = document.getElementById('closeOverlayBtn');
         
         let balance = 100;
         let racing = false;
+        let overlayVisible = false;
         let startTime = null;
         let canBet = true; 
-        const raceDuration = 12000; // Slightly faster for mobile engagement (12s)
+        const raceDuration = 12000;
 
         const horseData = [
             { id: 0, color: '#ff4444', label: '1' },
@@ -182,38 +221,55 @@
         function finishRace() {
             const betOn = horseSelect.value;
             const winner = horses.reduce((a, b) => a.angle > b.angle ? a : b);
+            const isWin = winner.id == betOn;
             
-            setTimeout(() => {
-                const isWin = winner.id == betOn;
-                const msg = isWin ? 
-                    `🏆 WINNER: Horse #${winner.label}!\nDave pays you $50.` : 
-                    `💸 LOSER: Horse #${winner.label} won.\nTry again at Dave's!`;
-                
-                alert(msg);
-                
-                if (isWin) balance += 50;
-                balanceEl.innerText = balance;
-                
-                racing = false;
-                startBtn.disabled = false;
-                horseSelect.disabled = false; // Re-enable betting selection
-                startTime = null;
-                initHorses();
-                renderAll();
+            // Setup Overlay Text
+            if (isWin) {
+                balance += 50;
+                resultTitle.innerText = "🏆 YOU WON!";
+                resultTitle.className = "win-text";
+                resultMessage.innerText = `Horse #${winner.label} came in first. Dave pays out $50!`;
+            } else {
+                resultTitle.innerText = "💸 YOU LOST";
+                resultTitle.className = "lose-text";
+                resultMessage.innerText = `Horse #${winner.label} won the race. Better luck next time!`;
+            }
 
-                setTimeout(() => { canBet = true; }, 300);
-            }, 300);
+            balanceEl.innerText = balance;
+            
+            // Show the Custom UI
+            setTimeout(() => {
+                resultOverlay.style.display = "block";
+                overlayVisible = true;
+            }, 500);
+        }
+
+        function closeOverlay() {
+            resultOverlay.style.display = "none";
+            overlayVisible = false;
+            racing = false;
+            startBtn.disabled = false;
+            horseSelect.disabled = false;
+            startTime = null;
+            initHorses();
+            renderAll();
+            setTimeout(() => { canBet = true; }, 300);
         }
 
         function handleBet() {
-            if (racing || !canBet) return;
-            if (balance < 10) return alert("You're out of cash! Dave doesn't give loans.");
+            if (racing || !canBet || overlayVisible) return;
+            if (balance < 10) {
+                resultTitle.innerText = "OUT OF CASH";
+                resultTitle.className = "lose-text";
+                resultMessage.innerText = "Dave doesn't give loans. Come back when you're loaded!";
+                resultOverlay.style.display = "block";
+                overlayVisible = true;
+                return;
+            }
             
             canBet = false; 
             startBtn.blur(); 
-            
-            // LOCK UI
-            horseSelect.disabled = true; // Prevents changing bet mid-race
+            horseSelect.disabled = true;
             startBtn.disabled = true;
             
             balance -= 10;
@@ -223,11 +279,16 @@
         }
 
         startBtn.addEventListener('click', handleBet);
+        closeOverlayBtn.addEventListener('click', closeOverlay);
 
         window.addEventListener('keydown', (e) => {
             if (e.code === "Space") {
                 e.preventDefault(); 
-                handleBet();
+                if (overlayVisible) {
+                    closeOverlay();
+                } else {
+                    handleBet();
+                }
             }
         });
 
